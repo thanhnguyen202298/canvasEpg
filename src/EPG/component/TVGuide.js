@@ -1,12 +1,18 @@
 /* eslint-disable prettier/prettier */
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { Component, useCallback, useEffect, useRef } from 'react';
 import Rect from '../models/Rect';
 import EPGData from '../utils/EPGData';
 import EPGUtils from '../utils/EPGUtils';
-import { Dimensions, Image, StyleSheet, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  StyleSheet,
+  View,
+  TVEventHandler,
+} from 'react-native';
 import Canvas from 'react-native-canvas';
 
-const initFirst = {
+const paramData = {
   handleClick: null,
   handleScroll: null,
   handleKeyPress: null,
@@ -65,22 +71,137 @@ const TVGuide = ({ epgData }) => {
   const canvasRe = useRef(null);
   const epgParent = useRef(null);
   const containCanvas = useRef(null);
+  const _tvEventHandler = new TVEventHandler();
 
-  const stateCanvas = initFirst;
+  const _enableTVEventHandler = () => {
+    _tvEventHandler.enable(this, function (cmp, evt) {
+      let programPosition = getFocusedEventPosition();
+      let channelPosition = getFocusedChannelPosition();
+      let dx = 0,
+        dy = 0;
+
+      if (evt && evt.eventType === 'right') {
+        programPosition += 1;
+        if (
+          programPosition != -1 &&
+          programPosition < epgData.getEventCount(getFocusedChannelPosition())
+        ) {
+          stateCanvas.focusedEvent = epgData.getEvent(
+            getFocusedChannelPosition(),
+            programPosition,
+          );
+          if (stateCanvas.focusedEvent) {
+            stateCanvas.focusedEventPosition = programPosition;
+            dx = parseInt(
+              (stateCanvas.focusedEvent.getEnd() -
+                stateCanvas.focusedEvent.getStart()) /
+                stateCanvas.mMillisPerPixel,
+            );
+          }
+        }
+        stateCanvas.scrollX = getScrollX(false) + dx;
+      } else if (evt && evt.eventType === 'up') {
+        channelPosition -= 1;
+        if (channelPosition >= 0) {
+          dy =
+            -1 *
+            (stateCanvas.mChannelLayoutHeight +
+              stateCanvas.mChannelLayoutMargin);
+          stateCanvas.focusedEventPosition = getProgramPosition(
+            channelPosition,
+            getTimeFrom(getScrollX(false) + getWidth() / 2),
+          );
+          if (
+            channelPosition >=
+            VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+          ) {
+            if (
+              epgData.getChannelCount() - channelPosition !=
+              VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+            ) {
+              stateCanvas.scrollY = getScrollY(false) + dy;
+            }
+          }
+          console.log(channelPosition);
+          stateCanvas.focusedChannelPosition = channelPosition;
+        }
+      } else if (evt && evt.eventType === 'left') {
+        programPosition -= 1;
+        if (programPosition != -1 && programPosition > -1) {
+          stateCanvas.focusedEvent = epgData.getEvent(
+            getFocusedChannelPosition(),
+            programPosition,
+          );
+          if (stateCanvas.focusedEvent) {
+            stateCanvas.focusedEventPosition = programPosition;
+            dx =
+              -1 *
+              parseInt(
+                (stateCanvas.focusedEvent.getEnd() -
+                  stateCanvas.focusedEvent.getStart()) /
+                  stateCanvas.mMillisPerPixel,
+              );
+          }
+        }
+        stateCanvas.scrollX = getScrollX(false) + dx;
+      } else if (evt && evt.eventType === 'down') {
+        channelPosition += 1;
+        if (channelPosition < epgData.getChannelCount()) {
+          dy =
+            stateCanvas.mChannelLayoutHeight + stateCanvas.mChannelLayoutMargin;
+          stateCanvas.focusedEventPosition = getProgramPosition(
+            channelPosition,
+            getTimeFrom(getScrollX(false) + getWidth() / 2),
+          );
+
+          if (
+            channelPosition >
+            VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+          ) {
+            if (
+              channelPosition !=
+              epgData.getChannelCount() - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+            ) {
+              stateCanvas.scrollY = getScrollY(false) + dy;
+            }
+          }
+          console.log(channelPosition);
+          stateCanvas.focusedChannelPosition = channelPosition;
+        }
+      }
+      stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
+      clear();
+      onDraw(stateCanvas.ctx);
+    });
+  };
+
+  const _disableTVEventHandler = () => {
+    if (_tvEventHandler) {
+      _tvEventHandler.disable();
+    }
+  };
+
+  useEffect(() => {
+    _enableTVEventHandler();
+    return () => _disableTVEventHandler();
+  });
+
+  const stateCanvas = paramData;
+  const { width, height } = Dimensions.get('window');
 
   const resetBoundaries = useCallback(() => {
     stateCanvas.mMillisPerPixel = calculateMillisPerPixel();
     stateCanvas.mTimeOffset = calculatedBaseLine();
     stateCanvas.mTimeLowerBoundary = getTimeFrom(0);
     stateCanvas.mTimeUpperBoundary = getTimeFrom(getWidth());
-  },[]);
+  }, []);
 
   const calculateMaxHorizontalScroll = useCallback(() => {
     stateCanvas.mMaxHorizontalScroll = parseInt(
       (DAYS_BACK_MILLIS + DAYS_FORWARD_MILLIS - HOURS_IN_VIEWPORT_MILLIS) /
         stateCanvas.mMillisPerPixel,
     );
-  },[]);
+  }, []);
 
   const calculateMaxVerticalScroll = useCallback(() => {
     let maxVerticalScroll =
@@ -90,7 +211,7 @@ const TVGuide = ({ epgData }) => {
       maxVerticalScroll < Dimensions.get('window').height
         ? 0
         : maxVerticalScroll - getHeight();
-  },[epgData]);
+  }, [epgData]);
 
   const calculateMillisPerPixel = useCallback(() => {
     return (
@@ -99,25 +220,28 @@ const TVGuide = ({ epgData }) => {
         stateCanvas.mChannelLayoutWidth -
         stateCanvas.mChannelLayoutMargin)
     );
-  },[]);
+  }, []);
 
   const calculatedBaseLine = useCallback(() => {
     //return LocalDateTime.now().toDateTime().minusMillis(DAYS_BACK_MILLIS).getMillis();
     return Date.now() - DAYS_BACK_MILLIS;
-  },[]);
+  }, []);
 
-  const getProgramPosition = useCallback((channelPosition, time) => {
-    let events = epgData.getEvents(channelPosition);
-    if (events != null) {
-      for (let eventPos = 0; eventPos < events.length; eventPos++) {
-        let event = events[eventPos];
-        if (event.getStart() <= time && event.getEnd() >= time) {
-          return eventPos;
+  const getProgramPosition = useCallback(
+    (channelPosition, time) => {
+      let events = epgData.getEvents(channelPosition);
+      if (events != null) {
+        for (let eventPos = 0; eventPos < events.length; eventPos++) {
+          let event = events[eventPos];
+          if (event.getStart() <= time && event.getEnd() >= time) {
+            return eventPos;
+          }
         }
       }
-    }
-    return -1;
-  },[epgData]);
+      return -1;
+    },
+    [epgData],
+  );
 
   const getFirstVisibleChannelPosition = useCallback(() => {
     let y = getScrollY(false);
@@ -131,7 +255,7 @@ const TVGuide = ({ epgData }) => {
       position = 0;
     }
     return position;
-  },[]);
+  }, []);
 
   const getLastVisibleChannelPosition = useCallback(() => {
     let y = getScrollY(false);
@@ -154,7 +278,7 @@ const TVGuide = ({ epgData }) => {
       position < totalChannelCount - 1
       ? position + 1
       : position;
-  },[]);
+  }, []);
 
   const getXFrom = useCallback((time) => {
     return parseInt(
@@ -163,7 +287,7 @@ const TVGuide = ({ epgData }) => {
         stateCanvas.mChannelLayoutWidth +
         stateCanvas.mChannelLayoutMargin,
     );
-  },[]);
+  }, []);
 
   const getTopFrom = useCallback((position) => {
     let y =
@@ -172,22 +296,22 @@ const TVGuide = ({ epgData }) => {
       stateCanvas.mChannelLayoutMargin +
       stateCanvas.mTimeBarHeight;
     return y - getScrollY(false);
-  },[]);
+  }, []);
 
   const getXPositionStart = useCallback(() => {
     return getXFrom(Date.now() - HOURS_IN_VIEWPORT_MILLIS / 2);
-  },[]);
+  }, []);
 
   const getTimeFrom = useCallback((x) => {
     return x * stateCanvas.mMillisPerPixel + stateCanvas.mTimeOffset;
-  },[]);
+  }, []);
 
   const shouldDrawTimeLine = useCallback((now) => {
     return (
       now >= stateCanvas.mTimeLowerBoundary &&
       now < stateCanvas.mTimeUpperBoundary
     );
-  },[]);
+  }, []);
 
   const isEventVisible = useCallback((start, end) => {
     return (
@@ -198,15 +322,15 @@ const TVGuide = ({ epgData }) => {
       (start <= stateCanvas.mTimeLowerBoundary &&
         end >= stateCanvas.mTimeUpperBoundary)
     );
-  },[]);
+  }, []);
 
   const getFocusedChannelPosition = useCallback(() => {
     return stateCanvas.focusedChannelPosition;
-  },[]);
+  }, []);
 
   const getFocusedEventPosition = useCallback(() => {
     return stateCanvas.focusedEventPosition;
-  },[]);
+  }, []);
 
   const isRTL = () => {
     return false;
@@ -240,28 +364,31 @@ const TVGuide = ({ epgData }) => {
     );
   };
 
-  const onDraw = useCallback((canvas) => {
-    if (epgData != null && epgData.hasData()) {
-      stateCanvas.mTimeLowerBoundary = getTimeFrom(getScrollX(false));
-      stateCanvas.mTimeUpperBoundary = getTimeFrom(
-        getScrollX(false) + getWidth(),
-      );
+  const onDraw = useCallback(
+    (canvas) => {
+      if (epgData != null && epgData.hasData()) {
+        stateCanvas.mTimeLowerBoundary = getTimeFrom(getScrollX(false));
+        stateCanvas.mTimeUpperBoundary = getTimeFrom(
+          getScrollX(false) + getWidth(),
+        );
 
-      let drawingRect = stateCanvas.mDrawingRect;
-      //console.log("X:" + this.getScrollX());
-      drawingRect.left = getScrollX();
-      drawingRect.top = getScrollY();
-      drawingRect.right = drawingRect.left + getWidth();
-      drawingRect.bottom = drawingRect.top + getHeight();
+        let drawingRect = stateCanvas.mDrawingRect;
+        //console.log("X:" + this.getScrollX());
+        drawingRect.left = getScrollX();
+        drawingRect.top = getScrollY();
+        drawingRect.right = drawingRect.left + getWidth();
+        drawingRect.bottom = drawingRect.top + getHeight();
 
-      drawChannelListItems(canvas, drawingRect);
-      drawEvents(canvas, drawingRect);
-      drawTimebar(canvas, drawingRect);
-      drawTimeLine(canvas, drawingRect);
-      //drawResetButton(canvas, drawingRect);
-      drawFocusEvent(canvas, drawingRect);
-    }
-  },[epgData, epgData.daata]);
+        drawChannelListItems(canvas, drawingRect);
+        drawEvents(canvas, drawingRect);
+        drawTimebar(canvas, drawingRect);
+        drawTimeLine(canvas, drawingRect);
+        //drawResetButton(canvas, drawingRect);
+        drawFocusEvent(canvas, drawingRect);
+      }
+    },
+    [epgData, epgData.daata],
+  );
 
   const drawTimebar = useCallback((canvas, drawingRect) => {
     drawingRect.left =
@@ -348,7 +475,7 @@ const TVGuide = ({ epgData }) => {
 
     drawTimebarDayIndicator(canvas, drawingRect);
     drawTimebarBottomStroke(canvas, drawingRect);
-  },[]);
+  }, []);
 
   const drawTimebarDayIndicator = (canvas, drawingRect) => {
     drawingRect.left = getScrollX();
@@ -749,8 +876,8 @@ const TVGuide = ({ epgData }) => {
     let channelPosition = getFocusedChannelPosition();
     let dx = 0,
       dy = 0;
-    switch (keyCode) {
-      case 39:
+    switch (event) {
+      case 'right':
         //let programPosition = this.getProgramPosition(this.getFocusedChannelPosition(), this.getTimeFrom(this.getScrollX(false) ));
         programPosition += 1;
         if (
@@ -772,7 +899,7 @@ const TVGuide = ({ epgData }) => {
         }
         stateCanvas.scrollX = getScrollX(false) + dx;
         break;
-      case 37:
+      case 'left':
         programPosition -= 1;
         if (programPosition != -1 && programPosition > -1) {
           stateCanvas.focusedEvent = epgData.getEvent(
@@ -792,7 +919,7 @@ const TVGuide = ({ epgData }) => {
         }
         stateCanvas.scrollX = getScrollX(false) + dx;
         break;
-      case 40:
+      case 'down':
         channelPosition += 1;
         if (channelPosition < epgData.getChannelCount()) {
           dy =
@@ -817,7 +944,7 @@ const TVGuide = ({ epgData }) => {
           stateCanvas.focusedChannelPosition = channelPosition;
         }
         break;
-      case 38:
+      case 'up':
         channelPosition -= 1;
         if (channelPosition >= 0) {
           dy =
@@ -853,10 +980,13 @@ const TVGuide = ({ epgData }) => {
   useEffect(() => {
     recalculateAndRedraw(false);
     focusEPG();
-  }, [focusEPG]);
+  }, [focusEPG, recalculateAndRedraw]);
 
   useEffect(() => {
     if (canvasRe.current) {
+      canvasRe.current.width = width;
+      canvasRe.current.height = height;
+      console.log(width, height);
       updateCanvas();
     }
   }, [updateCanvas]);
@@ -879,7 +1009,7 @@ const TVGuide = ({ epgData }) => {
     }
     // draw children “components”
     onDraw(stateCanvas.ctx);
-  }, []);
+  }, [onDraw, stateCanvas]);
 
   const focusEPG = useCallback(() => {
     epgParent.current.focus();
@@ -888,11 +1018,15 @@ const TVGuide = ({ epgData }) => {
   return (
     <View
       id="wrapper"
+      style={{ width: '100%', height: '100%' }}
       ref={epgParent}
       onKeyDown={handleKeyPress}
       className={Styles.background}
     >
-      <View ref={containCanvas}>
+      <View
+        ref={containCanvas}
+        style={{ width: '100%', backgroundColor: 'green', height: '100%' }}
+      >
         <Canvas
           ref={canvasRe}
           width={getWidth()}
@@ -906,6 +1040,9 @@ const TVGuide = ({ epgData }) => {
 
 const Styles = StyleSheet.create({
   background: {
+    backgroundColor: '#0f0',
+    flex: 1,
+    elevation: 1,
     position: 'absolute',
     width: 1280,
     maxHeight: 720,
