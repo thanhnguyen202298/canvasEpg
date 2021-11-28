@@ -10,6 +10,7 @@ import EPGEvent from '../models/EPGEvent';
 import MockDataService from '../utils/MockDataService';
 
 export const formatDay = 'DD/MM/YYYY';
+export const halfHourTime = 30 * 60 * 1000;
 
 export default class EPGData {
   constructor() {
@@ -47,7 +48,12 @@ export default class EPGData {
       moment(daynow, formatDay).toDate().getTime() + DAYS_FORWARD_MILLIS * day;
 
     this.data.map((e) => {
-      const events = MockDataService.createEvents(e, daymilis);
+      const endTime = e.events[e.events.length - 1].end;
+      let newStartTime = daymilis;
+      if (daymilis < endTime) {
+        newStartTime = endTime + halfHourTime;
+      }
+      const events = MockDataService.createEvents(e, newStartTime);
       e.events = e.events.concat(events);
       return e;
     });
