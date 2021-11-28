@@ -10,6 +10,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "axios": "^0.24.0",
     "react": "17.0.2",
     "react-native": "npm:react-native-tvos@latest",
     "react-native-canvas": "^0.1.38",

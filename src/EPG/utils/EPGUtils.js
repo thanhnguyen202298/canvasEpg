@@ -1,3 +1,7 @@
+/* eslint-disable prettier/prettier */
+import axios from 'axios';
+import { Base64Binary } from './Base64';
+
 /**
  * Created by satadru on 3/31/17.
  */
@@ -43,5 +47,33 @@ export default class EPGUtils {
       ((maxAllowed - minAllowed) * (unscaledNum - min)) / (max - min) +
         minAllowed,
     );
+  }
+
+  fetImage(imageUrl, dataCallback) {
+    return axios
+      .create({
+        baseURL: imageUrl,
+        headers: {
+          Accept: 'multipart/form-data',
+          'Content-Type': 'multipart/form-dat',
+        },
+      })
+      .get(imageUrl, { responseType: 'blob' })
+      .then(
+        (response) => {
+          const reader = new window.FileReader();
+          reader.readAsDataURL(response.data);
+          reader.onload = function () {
+            const imageDataUrl = reader.result;
+            // const base64 = imageDataUrl.substr(imageDataUrl.indexOf('base64,')+7);
+            // var byteArray = Base64Binary.decodeArrayBuffer(base64);
+            dataCallback(imageDataUrl);
+          };
+        },
+        (err) => {
+          console.log(err);
+          return [];
+        },
+      );
   }
 }

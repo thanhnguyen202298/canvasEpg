@@ -5,12 +5,11 @@ import EPGData from '../utils/EPGData';
 import EPGUtils from '../utils/EPGUtils';
 import {
   Dimensions,
-  Image,
   StyleSheet,
   View,
   TVEventHandler,
 } from 'react-native';
-import Canvas from 'react-native-canvas';
+import Canvas, {Image as CanvasImage} from 'react-native-canvas';
 
 const paramData = {
   handleClick: null,
@@ -756,7 +755,7 @@ const TVGuide = ({ epgData }) => {
       let image = stateCanvas.mChannelImageCache.get(imageURL);
       drawingRect = getDrawingRectForChannelImage(drawingRect, image);
       //canvas.drawBitmap(image, null, drawingRect, null);
-      if (this.isRTL()) {
+      if (isRTL()) {
         canvas.setTransform(1, 0, 0, 1, 0, 0);
         canvas.drawImage(
           image,
@@ -779,15 +778,21 @@ const TVGuide = ({ epgData }) => {
         );
       }
     } else {
-      const img = () => <Image source={imageURL} />;
-      let that = stateCanvas;
-      img.onload = function () {
-        stateCanvas.mChannelImageCache.set(imageURL, img);
+      stateCanvas.epgUtils.fetImage(imageURL, (data) => {
+        const image = new CanvasImage(canvasRe.current);
+        image.src = data;
+        stateCanvas.mChannelImageCache.set(imageURL, image);
         updateCanvas();
-        //drawingRect = that.getDrawingRectForChannelImage(drawingRect, img);
-        //canvas.drawBitmap(image, null, drawingRect, null);
-        //canvas.drawImage(img, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
-      };
+      });
+
+      // console.log(img);
+      // img.onload = function () {
+      //   stateCanvas.mChannelImageCache.set(imageURL, img);
+      //   updateCanvas();
+      //   //drawingRect = that.getDrawingRectForChannelImage(drawingRect, img);
+      //   //canvas.drawBitmap(image, null, drawingRect, null);
+      //   //canvas.drawImage(img, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
+      // };
     }
   };
 
@@ -1015,6 +1020,10 @@ const TVGuide = ({ epgData }) => {
     epgParent.current.focus();
   }, []);
 
+  const handleCanvas = (canvas)=>{
+    canvasRe.current= canvas;
+  }
+
   return (
     <View
       id="wrapper"
@@ -1028,7 +1037,7 @@ const TVGuide = ({ epgData }) => {
         style={{ width: '100%', backgroundColor: 'green', height: '100%' }}
       >
         <Canvas
-          ref={canvasRe}
+          ref={handleCanvas}
           width={getWidth()}
           height={getHeight()}
           style={{ border: 1 }}
