@@ -16,6 +16,7 @@ export default class EPGData {
     /*this.channels = new Array();
          this.events = new Array();*/
     this.data = MockDataService.getMockData();
+    this.page = 0;
     if (this.data) {
       /*this.data.forEach((values, key) => {
                  this.channels.push(key);
@@ -40,6 +41,7 @@ export default class EPGData {
   }
 
   getMoreEvent(day = 1) {
+    this.page = day;
     const daynow = moment().format(formatDay);
     const daymilis =
       moment(daynow, formatDay).toDate().getTime() + DAYS_FORWARD_MILLIS * day;

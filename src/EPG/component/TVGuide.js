@@ -73,13 +73,14 @@ const TVGuide = ({ epgData }) => {
   const containCanvas = useRef(null);
   const _tvEventHandler = new TVEventHandler();
   const page = useRef(0);
-  const [loading, setLoading] = useState(false);
+  const loading = useRef(false);
 
   const _enableTVEventHandler = () => {
     _tvEventHandler.enable(this, function (cmp, evt) {
-      if (evt.eventKeyAction === 0) {
+      if (evt.eventKeyAction === 0 || loading.current) {
         return;
       }
+      loading.current = true;
       let programPosition = getFocusedEventPosition();
       let channelPosition = getFocusedChannelPosition();
       let dx = 0,
@@ -186,23 +187,14 @@ const TVGuide = ({ epgData }) => {
       stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
       clear();
       onDraw(stateCanvas.ctx);
-      if (loadmore) {
+      if (loadmore && epgData.page < page.current + 1) {
         epgData.getMoreEvent(page.current + 1);
         page.current += 1;
       }
+
+      loading.current = false;
     });
   };
-
-  useEffect(() => {
-    console.log('redraw');
-    if (stateCanvas.ctx) {
-      console.log('draw ctx');
-
-      stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
-      clear();
-      onDraw(stateCanvas.ctx);
-    }
-  }, [epgData.data, onDraw]);
 
   const _disableTVEventHandler = () => {
     if (_tvEventHandler) {
