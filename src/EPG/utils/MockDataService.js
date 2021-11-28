@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 /**
  * Created by satadru on 4/1/17.
  */
