@@ -1,15 +1,16 @@
 /* eslint-disable prettier/prettier */
-import React, { Component, useCallback, useEffect, useRef } from 'react';
+import React, {
+  Component,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import Rect from '../models/Rect';
-import EPGData from '../utils/EPGData';
 import EPGUtils from '../utils/EPGUtils';
-import {
-  Dimensions,
-  StyleSheet,
-  View,
-  TVEventHandler,
-} from 'react-native';
-import Canvas, {Image as CanvasImage} from 'react-native-canvas';
+import { Dimensions, StyleSheet, View, TVEventHandler } from 'react-native';
+import Canvas, { Image as CanvasImage } from 'react-native-canvas';
+import moment from 'moment';
 
 const paramData = {
   handleClick: null,
@@ -71,31 +72,42 @@ const TVGuide = ({ epgData }) => {
   const epgParent = useRef(null);
   const containCanvas = useRef(null);
   const _tvEventHandler = new TVEventHandler();
+  const page = useRef(0);
+  const [loading, setLoading] = useState(false);
 
   const _enableTVEventHandler = () => {
     _tvEventHandler.enable(this, function (cmp, evt) {
+      if (evt.eventKeyAction === 0) {
+        return;
+      }
       let programPosition = getFocusedEventPosition();
       let channelPosition = getFocusedChannelPosition();
       let dx = 0,
-        dy = 0;
+        dy = 0,
+        loadmore = false;
 
       if (evt && evt.eventType === 'right') {
         programPosition += 1;
-        if (
-          programPosition != -1 &&
-          programPosition < epgData.getEventCount(getFocusedChannelPosition())
-        ) {
+        const countprogs = epgData.getEventCount(getFocusedChannelPosition());
+        if (programPosition != -1 && programPosition < countprogs) {
           stateCanvas.focusedEvent = epgData.getEvent(
             getFocusedChannelPosition(),
             programPosition,
           );
           if (stateCanvas.focusedEvent) {
+            console.log(
+              countprogs,
+              moment(stateCanvas.focusedEvent.start).format('YYYY-MM-DD HH:mm'),
+            );
             stateCanvas.focusedEventPosition = programPosition;
             dx = parseInt(
               (stateCanvas.focusedEvent.getEnd() -
                 stateCanvas.focusedEvent.getStart()) /
                 stateCanvas.mMillisPerPixel,
             );
+            if (programPosition > countprogs - 10) {
+              loadmore = true;
+            }
           }
         }
         stateCanvas.scrollX = getScrollX(false) + dx;
@@ -132,6 +144,9 @@ const TVGuide = ({ epgData }) => {
             programPosition,
           );
           if (stateCanvas.focusedEvent) {
+            console.log(
+              moment(stateCanvas.focusedEvent.start).format('YYYY-MM-DD HH:mm'),
+            );
             stateCanvas.focusedEventPosition = programPosition;
             dx =
               -1 *
@@ -171,8 +186,23 @@ const TVGuide = ({ epgData }) => {
       stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
       clear();
       onDraw(stateCanvas.ctx);
+      if (loadmore) {
+        epgData.getMoreEvent(page.current + 1);
+        page.current += 1;
+      }
     });
   };
+
+  useEffect(() => {
+    console.log('redraw');
+    if (stateCanvas.ctx) {
+      console.log('draw ctx');
+
+      stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
+      clear();
+      onDraw(stateCanvas.ctx);
+    }
+  }, [epgData.data, onDraw]);
 
   const _disableTVEventHandler = () => {
     if (_tvEventHandler) {
@@ -207,15 +237,13 @@ const TVGuide = ({ epgData }) => {
       getTopFrom(epgData.getChannelCount() - 2) +
       stateCanvas.mChannelLayoutHeight;
     stateCanvas.mMaxVerticalScroll =
-      maxVerticalScroll < Dimensions.get('window').height
-        ? 0
-        : maxVerticalScroll - getHeight();
+      maxVerticalScroll < height ? 0 : maxVerticalScroll - getHeight();
   }, [epgData]);
 
   const calculateMillisPerPixel = useCallback(() => {
     return (
       HOURS_IN_VIEWPORT_MILLIS /
-      (Dimensions.get('window').width -
+      (width -
         stateCanvas.mChannelLayoutWidth -
         stateCanvas.mChannelLayoutMargin)
     );
@@ -854,7 +882,7 @@ const TVGuide = ({ epgData }) => {
 
       stateCanvas.scrollX = getScrollX() + getXPositionStart() - getScrollX();
       stateCanvas.scrollY = getScrollY();
-      stateCanvas.scroller = containCanvas.current;
+      // stateCanvas.scroller = containCanvas.current;
       updateCanvas();
     }
   }, [
@@ -873,114 +901,114 @@ const TVGuide = ({ epgData }) => {
     console.log('scrolling...');
   };
 
-  const handleKeyPress = (event) => {
-    let keyCode = event.keyCode;
-    /*keyCode = this.isRTL() && (keyCode == 39) ? 37 : 39;
-        keyCode = this.isRTL() && (keyCode == 37) ? 39 : 37;*/
-    let programPosition = getFocusedEventPosition();
-    let channelPosition = getFocusedChannelPosition();
-    let dx = 0,
-      dy = 0;
-    switch (event) {
-      case 'right':
-        //let programPosition = this.getProgramPosition(this.getFocusedChannelPosition(), this.getTimeFrom(this.getScrollX(false) ));
-        programPosition += 1;
-        if (
-          programPosition != -1 &&
-          programPosition < epgData.getEventCount(getFocusedChannelPosition())
-        ) {
-          stateCanvas.focusedEvent = epgData.getEvent(
-            getFocusedChannelPosition(),
-            programPosition,
-          );
-          if (stateCanvas.focusedEvent) {
-            stateCanvas.focusedEventPosition = programPosition;
-            dx = parseInt(
-              (stateCanvas.focusedEvent.getEnd() -
-                stateCanvas.focusedEvent.getStart()) /
-                stateCanvas.mMillisPerPixel,
-            );
-          }
-        }
-        stateCanvas.scrollX = getScrollX(false) + dx;
-        break;
-      case 'left':
-        programPosition -= 1;
-        if (programPosition != -1 && programPosition > -1) {
-          stateCanvas.focusedEvent = epgData.getEvent(
-            getFocusedChannelPosition(),
-            programPosition,
-          );
-          if (stateCanvas.focusedEvent) {
-            stateCanvas.focusedEventPosition = programPosition;
-            dx =
-              -1 *
-              parseInt(
-                (stateCanvas.focusedEvent.getEnd() -
-                  stateCanvas.focusedEvent.getStart()) /
-                  stateCanvas.mMillisPerPixel,
-              );
-          }
-        }
-        stateCanvas.scrollX = getScrollX(false) + dx;
-        break;
-      case 'down':
-        channelPosition += 1;
-        if (channelPosition < epgData.getChannelCount()) {
-          dy =
-            stateCanvas.mChannelLayoutHeight + stateCanvas.mChannelLayoutMargin;
-          stateCanvas.focusedEventPosition = getProgramPosition(
-            channelPosition,
-            getTimeFrom(getScrollX(false) + getWidth() / 2),
-          );
+  // const handleKeyPress = (event) => {
+  //   let keyCode = event.keyCode;
+  //   /*keyCode = this.isRTL() && (keyCode == 39) ? 37 : 39;
+  //       keyCode = this.isRTL() && (keyCode == 37) ? 39 : 37;*/
+  //   let programPosition = getFocusedEventPosition();
+  //   let channelPosition = getFocusedChannelPosition();
+  //   let dx = 0,
+  //     dy = 0;
+  //   switch (event) {
+  //     case 'right':
+  //       //let programPosition = this.getProgramPosition(this.getFocusedChannelPosition(), this.getTimeFrom(this.getScrollX(false) ));
+  //       programPosition += 1;
+  //       if (
+  //         programPosition != -1 &&
+  //         programPosition < epgData.getEventCount(getFocusedChannelPosition())
+  //       ) {
+  //         stateCanvas.focusedEvent = epgData.getEvent(
+  //           getFocusedChannelPosition(),
+  //           programPosition,
+  //         );
+  //         if (stateCanvas.focusedEvent) {
+  //           stateCanvas.focusedEventPosition = programPosition;
+  //           dx = parseInt(
+  //             (stateCanvas.focusedEvent.getEnd() -
+  //               stateCanvas.focusedEvent.getStart()) /
+  //               stateCanvas.mMillisPerPixel,
+  //           );
+  //         }
+  //       }
+  //       stateCanvas.scrollX = getScrollX(false) + dx;
+  //       break;
+  //     case 'left':
+  //       programPosition -= 1;
+  //       if (programPosition != -1 && programPosition > -1) {
+  //         stateCanvas.focusedEvent = epgData.getEvent(
+  //           getFocusedChannelPosition(),
+  //           programPosition,
+  //         );
+  //         if (stateCanvas.focusedEvent) {
+  //           stateCanvas.focusedEventPosition = programPosition;
+  //           dx =
+  //             -1 *
+  //             parseInt(
+  //               (stateCanvas.focusedEvent.getEnd() -
+  //                 stateCanvas.focusedEvent.getStart()) /
+  //                 stateCanvas.mMillisPerPixel,
+  //             );
+  //         }
+  //       }
+  //       stateCanvas.scrollX = getScrollX(false) + dx;
+  //       break;
+  //     case 'down':
+  //       channelPosition += 1;
+  //       if (channelPosition < epgData.getChannelCount()) {
+  //         dy =
+  //           stateCanvas.mChannelLayoutHeight + stateCanvas.mChannelLayoutMargin;
+  //         stateCanvas.focusedEventPosition = getProgramPosition(
+  //           channelPosition,
+  //           getTimeFrom(getScrollX(false) + getWidth() / 2),
+  //         );
 
-          if (
-            channelPosition >
-            VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
-          ) {
-            if (
-              channelPosition !=
-              epgData.getChannelCount() - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
-            ) {
-              stateCanvas.scrollY = getScrollY(false) + dy;
-            }
-          }
-          console.log(channelPosition);
-          stateCanvas.focusedChannelPosition = channelPosition;
-        }
-        break;
-      case 'up':
-        channelPosition -= 1;
-        if (channelPosition >= 0) {
-          dy =
-            -1 *
-            (stateCanvas.mChannelLayoutHeight +
-              stateCanvas.mChannelLayoutMargin);
-          stateCanvas.focusedEventPosition = getProgramPosition(
-            channelPosition,
-            getTimeFrom(getScrollX(false) + getWidth() / 2),
-          );
-          if (
-            channelPosition >=
-            VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
-          ) {
-            if (
-              epgData.getChannelCount() - channelPosition !=
-              VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
-            ) {
-              stateCanvas.scrollY = getScrollY(false) + dy;
-            }
-          }
-          console.log(channelPosition);
-          stateCanvas.focusedChannelPosition = channelPosition;
-        }
-        break;
-    }
+  //         if (
+  //           channelPosition >
+  //           VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+  //         ) {
+  //           if (
+  //             channelPosition !=
+  //             epgData.getChannelCount() - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+  //           ) {
+  //             stateCanvas.scrollY = getScrollY(false) + dy;
+  //           }
+  //         }
+  //         console.log(channelPosition);
+  //         stateCanvas.focusedChannelPosition = channelPosition;
+  //       }
+  //       break;
+  //     case 'up':
+  //       channelPosition -= 1;
+  //       if (channelPosition >= 0) {
+  //         dy =
+  //           -1 *
+  //           (stateCanvas.mChannelLayoutHeight +
+  //             stateCanvas.mChannelLayoutMargin);
+  //         stateCanvas.focusedEventPosition = getProgramPosition(
+  //           channelPosition,
+  //           getTimeFrom(getScrollX(false) + getWidth() / 2),
+  //         );
+  //         if (
+  //           channelPosition >=
+  //           VISIBLE_CHANNEL_COUNT - VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+  //         ) {
+  //           if (
+  //             epgData.getChannelCount() - channelPosition !=
+  //             VERTICAL_SCROLL_BOTTOM_PADDING_ITEM
+  //           ) {
+  //             stateCanvas.scrollY = getScrollY(false) + dy;
+  //           }
+  //         }
+  //         console.log(channelPosition);
+  //         stateCanvas.focusedChannelPosition = channelPosition;
+  //       }
+  //       break;
+  //   }
 
-    stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
-    clear();
-    onDraw(stateCanvas.ctx);
-  };
+  //   stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
+  //   clear();
+  //   onDraw(stateCanvas.ctx);
+  // };
 
   useEffect(() => {
     recalculateAndRedraw(false);
@@ -994,7 +1022,7 @@ const TVGuide = ({ epgData }) => {
       console.log(width, height);
       updateCanvas();
     }
-  }, [updateCanvas]);
+  }, [updateCanvas, epgData]);
 
   const updateCanvas = useCallback(() => {
     stateCanvas.ctx = canvasRe.current.getContext('2d');
@@ -1020,16 +1048,15 @@ const TVGuide = ({ epgData }) => {
     epgParent.current.focus();
   }, []);
 
-  const handleCanvas = (canvas)=>{
-    canvasRe.current= canvas;
-  }
+  const handleCanvas = (canvas) => {
+    canvasRe.current = canvas;
+  };
 
   return (
     <View
       id="wrapper"
       style={{ width: '100%', height: '100%' }}
       ref={epgParent}
-      onKeyDown={handleKeyPress}
       className={Styles.background}
     >
       <View

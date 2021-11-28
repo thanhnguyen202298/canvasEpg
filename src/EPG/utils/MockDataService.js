@@ -2,9 +2,11 @@
 /**
  * Created by satadru on 4/1/17.
  */
+import moment from 'moment';
 import { DAYS_BACK_MILLIS, DAYS_FORWARD_MILLIS } from '../component/TVGuide';
 import EPGChannel from '../models/EPGChannel';
 import EPGEvent from '../models/EPGEvent';
+import { formatDay } from './EPGData';
 
 export default class MockDataService {
   //static Random rand = new Random();
@@ -36,8 +38,8 @@ export default class MockDataService {
 
   static getMockData() {
     let channels = new Array();
-
-    let nowMillis = Date.now();
+    const daynow = moment().format(formatDay);
+    const daymilis = moment(daynow, formatDay).toDate().getTime();
 
     for (let i = 0; i < 20; i++) {
       let epgChannel = new EPGChannel(
@@ -46,7 +48,7 @@ export default class MockDataService {
         i.toString(),
       );
 
-      epgChannel.events = MockDataService.createEvents(epgChannel, nowMillis);
+      epgChannel.events = MockDataService.createEvents(epgChannel, daymilis);
       channels.push(epgChannel);
 
       //result.set(epgChannel, MockDataService.createEvents(epgChannel, nowMillis));
@@ -58,7 +60,7 @@ export default class MockDataService {
   static createEvents(epgChannel, nowMillis) {
     let events = new Array();
 
-    let epgStart = nowMillis - DAYS_BACK_MILLIS;
+    let epgStart = nowMillis;
     let epgEnd = nowMillis + DAYS_FORWARD_MILLIS;
 
     let currentTime = epgStart;

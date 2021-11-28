@@ -1,10 +1,15 @@
+/* eslint-disable prettier/prettier */
 /**
  * Created by satadru on 3/30/17.
  */
+import moment from 'moment';
+import { DAYS_FORWARD_MILLIS } from '../component/TVGuide';
 import EPGChannel from '../models/EPGChannel';
 import EPGEvent from '../models/EPGEvent';
 
 import MockDataService from '../utils/MockDataService';
+
+export const formatDay = 'DD/MM/YYYY';
 
 export default class EPGData {
   constructor() {
@@ -32,6 +37,18 @@ export default class EPGData {
     let channel = this.channels[channelPosition];
     let events = channel.getEvents();
     return events;
+  }
+
+  getMoreEvent(day = 1) {
+    const daynow = moment().format(formatDay);
+    const daymilis =
+      moment(daynow, formatDay).toDate().getTime() + DAYS_FORWARD_MILLIS * day;
+
+    this.data.map((e) => {
+      const events = MockDataService.createEvents(e, daymilis);
+      e.events = e.events.concat(events);
+      return e;
+    });
   }
 
   getEventCount(channelPosition) {
