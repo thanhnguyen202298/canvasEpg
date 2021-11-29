@@ -41,7 +41,7 @@ export default class MockDataService {
     const daynow = moment().format(formatDay);
     const daymilis = moment(daynow, formatDay).toDate().getTime();
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 120; i++) {
       let epgChannel = new EPGChannel(
         MockDataService.availableChannelLogos[i % 5],
         'Channel ' + (i + 1),

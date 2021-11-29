@@ -1,10 +1,8 @@
 /* eslint-disable prettier/prettier */
 import React, {
-  Component,
   useCallback,
   useEffect,
   useRef,
-  useState,
 } from 'react';
 import Rect from '../models/Rect';
 import EPGUtils from '../utils/EPGUtils';
@@ -67,19 +65,21 @@ export const VISIBLE_CHANNEL_COUNT = 6; // No of channel to show at a time
 export const VERTICAL_SCROLL_BOTTOM_PADDING_ITEM = 2;
 export const VERTICAL_SCROLL_TOP_PADDING_ITEM = 2;
 
+const _tvEventHandler = new TVEventHandler();
 const TVGuide = ({ epgData }) => {
   const canvasRe = useRef(null);
   const epgParent = useRef(null);
   const containCanvas = useRef(null);
-  const _tvEventHandler = new TVEventHandler();
   const page = useRef(0);
   const loading = useRef(false);
 
   const _enableTVEventHandler = () => {
     _tvEventHandler.enable(this, function (cmp, evt) {
-      if (evt.eventKeyAction === 0 || loading.current) {
+      if (evt.eventKeyAction > 0 || loading.current) {
         return;
       }
+      const dat = Date.now();
+      console.log("event - 0");
       loading.current = true;
       let programPosition = getFocusedEventPosition();
       let channelPosition = getFocusedChannelPosition();
@@ -96,10 +96,6 @@ const TVGuide = ({ epgData }) => {
             programPosition,
           );
           if (stateCanvas.focusedEvent) {
-            console.log(
-              countprogs,
-              moment(stateCanvas.focusedEvent.start).format('YYYY-MM-DD HH:mm'),
-            );
             stateCanvas.focusedEventPosition = programPosition;
             dx = parseInt(
               (stateCanvas.focusedEvent.getEnd() -
@@ -186,7 +182,11 @@ const TVGuide = ({ epgData }) => {
       }
       stateCanvas.ctx.clearRect(0, 0, getWidth(), getHeight());
       clear();
-      onDraw(stateCanvas.ctx);
+      onDraw(
+        stateCanvas.ctx,
+        evt.eventType === 'left' || evt.eventType === 'right',
+      );
+      console.log("event end", Date.now() - dat);
       if (loadmore && epgData.page < page.current + 1) {
         epgData.getMoreEvent(page.current + 1);
         page.current += 1;
@@ -215,14 +215,20 @@ const TVGuide = ({ epgData }) => {
     stateCanvas.mTimeOffset = calculatedBaseLine();
     stateCanvas.mTimeLowerBoundary = getTimeFrom(0);
     stateCanvas.mTimeUpperBoundary = getTimeFrom(getWidth());
-  }, []);
+  }, [
+    calculateMillisPerPixel,
+    getWidth,
+    getTimeFrom,
+    getTimeFrom,
+    calculatedBaseLine,
+  ]);
 
   const calculateMaxHorizontalScroll = useCallback(() => {
     stateCanvas.mMaxHorizontalScroll = parseInt(
       (DAYS_BACK_MILLIS + DAYS_FORWARD_MILLIS - HOURS_IN_VIEWPORT_MILLIS) /
         stateCanvas.mMillisPerPixel,
     );
-  }, []);
+  }, [stateCanvas]);
 
   const calculateMaxVerticalScroll = useCallback(() => {
     let maxVerticalScroll =
@@ -230,7 +236,7 @@ const TVGuide = ({ epgData }) => {
       stateCanvas.mChannelLayoutHeight;
     stateCanvas.mMaxVerticalScroll =
       maxVerticalScroll < height ? 0 : maxVerticalScroll - getHeight();
-  }, [epgData]);
+  }, [epgData, stateCanvas, height, getHeight, getTopFrom]);
 
   const calculateMillisPerPixel = useCallback(() => {
     return (
@@ -239,7 +245,7 @@ const TVGuide = ({ epgData }) => {
         stateCanvas.mChannelLayoutWidth -
         stateCanvas.mChannelLayoutMargin)
     );
-  }, []);
+  }, [stateCanvas, width]);
 
   const calculatedBaseLine = useCallback(() => {
     //return LocalDateTime.now().toDateTime().minusMillis(DAYS_BACK_MILLIS).getMillis();
@@ -274,7 +280,7 @@ const TVGuide = ({ epgData }) => {
       position = 0;
     }
     return position;
-  }, []);
+  }, [getScrollY, stateCanvas]);
 
   const getLastVisibleChannelPosition = useCallback(() => {
     let y = getScrollY(false);
@@ -297,94 +303,116 @@ const TVGuide = ({ epgData }) => {
       position < totalChannelCount - 1
       ? position + 1
       : position;
-  }, []);
+  }, [stateCanvas, epgData, getScrollY, getHeight]);
 
-  const getXFrom = useCallback((time) => {
-    return parseInt(
-      (time - stateCanvas.mTimeLowerBoundary) / stateCanvas.mMillisPerPixel +
+  const getXFrom = useCallback(
+    (time) => {
+      return parseInt(
+        (time - stateCanvas.mTimeLowerBoundary) / stateCanvas.mMillisPerPixel +
+          stateCanvas.mChannelLayoutMargin +
+          stateCanvas.mChannelLayoutWidth +
+          stateCanvas.mChannelLayoutMargin,
+      );
+    },
+    [stateCanvas],
+  );
+
+  const getTopFrom = useCallback(
+    (position) => {
+      let y =
+        position *
+          (stateCanvas.mChannelLayoutHeight +
+            stateCanvas.mChannelLayoutMargin) +
         stateCanvas.mChannelLayoutMargin +
-        stateCanvas.mChannelLayoutWidth +
-        stateCanvas.mChannelLayoutMargin,
-    );
-  }, []);
-
-  const getTopFrom = useCallback((position) => {
-    let y =
-      position *
-        (stateCanvas.mChannelLayoutHeight + stateCanvas.mChannelLayoutMargin) +
-      stateCanvas.mChannelLayoutMargin +
-      stateCanvas.mTimeBarHeight;
-    return y - getScrollY(false);
-  }, []);
+        stateCanvas.mTimeBarHeight;
+      return y - getScrollY(false);
+    },
+    [getScrollY, stateCanvas],
+  );
 
   const getXPositionStart = useCallback(() => {
     return getXFrom(Date.now() - HOURS_IN_VIEWPORT_MILLIS / 2);
-  }, []);
+  }, [getXFrom]);
 
-  const getTimeFrom = useCallback((x) => {
-    return x * stateCanvas.mMillisPerPixel + stateCanvas.mTimeOffset;
-  }, []);
+  const getTimeFrom = useCallback(
+    (x) => {
+      return x * stateCanvas.mMillisPerPixel + stateCanvas.mTimeOffset;
+    },
+    [stateCanvas],
+  );
 
-  const shouldDrawTimeLine = useCallback((now) => {
-    return (
-      now >= stateCanvas.mTimeLowerBoundary &&
-      now < stateCanvas.mTimeUpperBoundary
-    );
-  }, []);
+  const shouldDrawTimeLine = useCallback(
+    (now) => {
+      return (
+        now >= stateCanvas.mTimeLowerBoundary &&
+        now < stateCanvas.mTimeUpperBoundary
+      );
+    },
+    [stateCanvas],
+  );
 
-  const isEventVisible = useCallback((start, end) => {
-    return (
-      (start >= stateCanvas.mTimeLowerBoundary &&
-        start <= stateCanvas.mTimeUpperBoundary) ||
-      (end >= stateCanvas.mTimeLowerBoundary &&
-        end <= stateCanvas.mTimeUpperBoundary) ||
-      (start <= stateCanvas.mTimeLowerBoundary &&
-        end >= stateCanvas.mTimeUpperBoundary)
-    );
-  }, []);
+  const isEventVisible = useCallback(
+    (start, end) => {
+      return (
+        (start >= stateCanvas.mTimeLowerBoundary &&
+          start <= stateCanvas.mTimeUpperBoundary) ||
+        (end >= stateCanvas.mTimeLowerBoundary &&
+          end <= stateCanvas.mTimeUpperBoundary) ||
+        (start <= stateCanvas.mTimeLowerBoundary &&
+          end >= stateCanvas.mTimeUpperBoundary)
+      );
+    },
+    [stateCanvas],
+  );
 
   const getFocusedChannelPosition = useCallback(() => {
     return stateCanvas.focusedChannelPosition;
-  }, []);
+  }, [stateCanvas]);
 
   const getFocusedEventPosition = useCallback(() => {
     return stateCanvas.focusedEventPosition;
+  }, [stateCanvas]);
+
+  const isRTL = useCallback(() => {
+    return false;
   }, []);
 
-  const isRTL = () => {
-    return false;
-  };
+  const getScrollX = useCallback(
+    (neglect = true) => {
+      if (neglect) {
+        return 0;
+      }
+      return stateCanvas.scrollX;
+      //return window.scrollX;
+    },
+    [stateCanvas],
+  );
 
-  const getScrollX = (neglect = true) => {
-    if (neglect) {
-      return 0;
-    }
-    return stateCanvas.scrollX;
-    //return window.scrollX;
-  };
+  const getScrollY = useCallback(
+    (neglect = true) => {
+      if (neglect) {
+        return 0;
+      }
+      return stateCanvas.scrollY;
+      //return window.scrollY;
+    },
+    [stateCanvas],
+  );
 
-  const getScrollY = (neglect = true) => {
-    if (neglect) {
-      return 0;
-    }
-    return stateCanvas.scrollY;
-    //return window.scrollY;
-  };
-
-  const getWidth = () => {
+  const getWidth = useCallback(() => {
     return 1280;
-  };
+  }, []);
 
-  const getHeight = () => {
+  const getHeight = useCallback(() => {
     return (
       stateCanvas.mTimeBarHeight +
       (stateCanvas.mChannelLayoutMargin + stateCanvas.mChannelLayoutHeight) *
         VISIBLE_CHANNEL_COUNT
     );
-  };
+  }, [stateCanvas]);
 
   const onDraw = useCallback(
-    (canvas) => {
+    (canvas, isHorrizonEvent = false) => {
       if (epgData != null && epgData.hasData()) {
         stateCanvas.mTimeLowerBoundary = getTimeFrom(getScrollX(false));
         stateCanvas.mTimeUpperBoundary = getTimeFrom(
@@ -397,8 +425,9 @@ const TVGuide = ({ epgData }) => {
         drawingRect.top = getScrollY();
         drawingRect.right = drawingRect.left + getWidth();
         drawingRect.bottom = drawingRect.top + getHeight();
-
+        // if (!isHorrizonEvent) {
         drawChannelListItems(canvas, drawingRect);
+        // }
         drawEvents(canvas, drawingRect);
         drawTimebar(canvas, drawingRect);
         drawTimeLine(canvas, drawingRect);
@@ -406,184 +435,131 @@ const TVGuide = ({ epgData }) => {
         drawFocusEvent(canvas, drawingRect);
       }
     },
-    [epgData, epgData.daata],
+    [
+      stateCanvas,
+      getTimeFrom,
+      getScrollX,
+      getScrollY,
+      getWidth,
+      getHeight,
+      epgData,
+      drawChannelListItems,
+      drawEvents,
+      drawTimebar,
+      drawTimeLine,
+      drawFocusEvent,
+    ],
   );
 
-  const drawTimebar = useCallback((canvas, drawingRect) => {
-    drawingRect.left =
-      getScrollX() +
-      stateCanvas.mChannelLayoutWidth +
-      stateCanvas.mChannelLayoutMargin;
-    drawingRect.top = getScrollY();
-    drawingRect.right = drawingRect.left + getWidth();
-    drawingRect.bottom = drawingRect.top + stateCanvas.mTimeBarHeight;
-
-    stateCanvas.mClipRect.left =
-      getScrollX() +
-      stateCanvas.mChannelLayoutWidth +
-      stateCanvas.mChannelLayoutMargin;
-    stateCanvas.mClipRect.top = getScrollY();
-    stateCanvas.mClipRect.right = getScrollX() + getWidth();
-    stateCanvas.mClipRect.bottom =
-      stateCanvas.mClipRect.top + stateCanvas.mTimeBarHeight;
-
-    //canvas.save();
-    //canvas.rect(this.mClipRect.left, this.mClipRect.top, this.mClipRect.width, this.mClipRect.height);
-    //canvas.clip();
-
-    // Background
-    canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
-    canvas.fillRect(
-      drawingRect.left,
-      drawingRect.top,
-      drawingRect.width,
-      drawingRect.height,
-    );
-
-    // Time stamps
-    //mPaint.setColor(mEventLayoutTextColor);
-    //mPaint.setTextSize(mTimeBarTextSize);
-    canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
-    if (isRTL()) {
-      //canvas.setTransform(1, 0, 0, 1, 0, 0);
-      //canvas.save();
-      canvas.setTransform(1, 0, 0, 1, 0, 0);
-    }
-
-    for (
-      let i = 0;
-      i < HOURS_IN_VIEWPORT_MILLIS / TIME_LABEL_SPACING_MILLIS;
-      i++
-    ) {
-      // Get time and round to nearest half hour
-      let time =
-        TIME_LABEL_SPACING_MILLIS *
-        ((stateCanvas.mTimeLowerBoundary +
-          TIME_LABEL_SPACING_MILLIS * i +
-          TIME_LABEL_SPACING_MILLIS / 2) /
-          TIME_LABEL_SPACING_MILLIS);
-
-      if (isRTL()) {
-        canvas.fillText(
-          stateCanvas.epgUtils.getShortTime(time),
-          getWidth() +
-            stateCanvas.mChannelLayoutMargin +
-            stateCanvas.mChannelLayoutMargin -
-            stateCanvas.mChannelLayoutHeight -
-            getXFrom(time),
-          drawingRect.top +
-            ((drawingRect.bottom - drawingRect.top) / 2 +
-              stateCanvas.mTimeBarTextSize / 2),
-        );
-      } else {
-        canvas.fillText(
-          stateCanvas.epgUtils.getShortTime(time),
-          getXFrom(time),
-          drawingRect.top +
-            ((drawingRect.bottom - drawingRect.top) / 2 +
-              stateCanvas.mTimeBarTextSize / 2),
-        );
-      }
-    }
-    if (isRTL()) {
-      stateCanvas.ctx.setTransform(-1, -0, 0, 1, getWidth(), 0);
-      //canvas.restore();ZZ
-    }
-
-    //canvas.restore();
-
-    drawTimebarDayIndicator(canvas, drawingRect);
-    drawTimebarBottomStroke(canvas, drawingRect);
-  }, []);
-
-  const drawTimebarDayIndicator = (canvas, drawingRect) => {
-    drawingRect.left = getScrollX();
-    drawingRect.top = getScrollY();
-    drawingRect.right = drawingRect.left + stateCanvas.mChannelLayoutWidth;
-    drawingRect.bottom = drawingRect.top + stateCanvas.mTimeBarHeight;
-
-    // Background
-    //mPaint.setColor(mChannelLayoutBackground);
-    canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
-    //canvas.drawRect(drawingRect, mPaint);
-    canvas.fillRect(
-      drawingRect.left,
-      drawingRect.top,
-      drawingRect.width,
-      drawingRect.height,
-    );
-
-    // Text
-    //mPaint.setColor(mEventLayoutTextColor);
-    canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
-    //mPaint.setTextSize(mTimeBarTextSize);
-    //mPaint.setTextAlign(Paint.Align.CENTER);
-    canvas.textAlign = 'center';
-    //canvas.drawText(EPGUtil.getWeekdayName(mTimeLowerBoundary),
-    //drawingRect.left + ((drawingRect.right - drawingRect.left) / 2),
-    //drawingRect.top + (((drawingRect.bottom - drawingRect.top) / 2) + (mTimeBarTextSize / 2)), mPaint);
-    if (isRTL()) {
-      //canvas.save();
-      canvas.setTransform(1, 0, 0, 1, 0, 0);
-      //canvas.scale(-1, 1);
-
-      canvas.fillText(
-        stateCanvas.epgUtils.getWeekdayName(stateCanvas.mTimeLowerBoundary),
-        getWidth() +
-          stateCanvas.mChannelLayoutMargin +
-          stateCanvas.mChannelLayoutMargin -
-          stateCanvas.mChannelLayoutHeight -
-          drawingRect.left +
-          (drawingRect.right - drawingRect.left) / 2,
-        drawingRect.top +
-          ((drawingRect.bottom - drawingRect.top) / 2 +
-            stateCanvas.mTimeBarTextSize / 2),
-      );
-    } else {
-      canvas.fillText(
-        stateCanvas.epgUtils.getWeekdayName(stateCanvas.mTimeLowerBoundary),
-        drawingRect.left + (drawingRect.right - drawingRect.left) / 2,
-        drawingRect.top +
-          ((drawingRect.bottom - drawingRect.top) / 2 +
-            stateCanvas.mTimeBarTextSize / 2),
-      );
-    }
-
-    if (isRTL()) {
-      stateCanvas.ctx.setTransform(-1, -0, 0, 1, getWidth(), 0);
-    }
-
-    //mPaint.setTextAlign(Paint.Align.LEFT);
-    canvas.textAlign = 'left';
-  };
-
-  const drawTimebarBottomStroke = (canvas, drawingRect) => {
-    drawingRect.left = getScrollX();
-    drawingRect.top = getScrollY() + stateCanvas.mTimeBarHeight;
-    drawingRect.right = drawingRect.left + getWidth();
-    drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutMargin;
-
-    // Bottom stroke
-    //mPaint.setColor(mEPGBackground);
-    canvas.fillStyle = stateCanvas.mEPGBackground;
-    canvas.fillRect(
-      drawingRect.left,
-      drawingRect.top,
-      drawingRect.width,
-      drawingRect.height,
-    );
-  };
-
-  const drawTimeLine = (canvas, drawingRect) => {
-    let now = Date.now();
-    if (shouldDrawTimeLine(now)) {
-      drawingRect.left = getXFrom(now);
+  const drawTimebar = useCallback(
+    (canvas, drawingRect) => {
+      drawingRect.left =
+        getScrollX() +
+        stateCanvas.mChannelLayoutWidth +
+        stateCanvas.mChannelLayoutMargin;
       drawingRect.top = getScrollY();
-      drawingRect.right = drawingRect.left + stateCanvas.mTimeBarLineWidth;
-      drawingRect.bottom = drawingRect.top + getHeight();
+      drawingRect.right = drawingRect.left + getWidth();
+      drawingRect.bottom = drawingRect.top + stateCanvas.mTimeBarHeight;
 
-      //mPaint.setColor(mTimeBarLineColor);
-      canvas.fillStyle = stateCanvas.mTimeBarLineColor;
+      stateCanvas.mClipRect.left =
+        getScrollX() +
+        stateCanvas.mChannelLayoutWidth +
+        stateCanvas.mChannelLayoutMargin;
+      stateCanvas.mClipRect.top = getScrollY();
+      stateCanvas.mClipRect.right = getScrollX() + getWidth();
+      stateCanvas.mClipRect.bottom =
+        stateCanvas.mClipRect.top + stateCanvas.mTimeBarHeight;
+
+      //canvas.save();
+      //canvas.rect(this.mClipRect.left, this.mClipRect.top, this.mClipRect.width, this.mClipRect.height);
+      //canvas.clip();
+
+      // Background
+      canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
+      canvas.fillRect(
+        drawingRect.left,
+        drawingRect.top,
+        drawingRect.width,
+        drawingRect.height,
+      );
+
+      // Time stamps
+      //mPaint.setColor(mEventLayoutTextColor);
+      //mPaint.setTextSize(mTimeBarTextSize);
+      canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
+      if (isRTL()) {
+        //canvas.setTransform(1, 0, 0, 1, 0, 0);
+        //canvas.save();
+        canvas.setTransform(1, 0, 0, 1, 0, 0);
+      }
+
+      for (
+        let i = 0;
+        i < HOURS_IN_VIEWPORT_MILLIS / TIME_LABEL_SPACING_MILLIS;
+        i++
+      ) {
+        // Get time and round to nearest half hour
+        let time =
+          TIME_LABEL_SPACING_MILLIS *
+          ((stateCanvas.mTimeLowerBoundary +
+            TIME_LABEL_SPACING_MILLIS * i +
+            TIME_LABEL_SPACING_MILLIS / 2) /
+            TIME_LABEL_SPACING_MILLIS);
+
+        if (isRTL()) {
+          canvas.fillText(
+            stateCanvas.epgUtils.getShortTime(time),
+            getWidth() +
+              stateCanvas.mChannelLayoutMargin +
+              stateCanvas.mChannelLayoutMargin -
+              stateCanvas.mChannelLayoutHeight -
+              getXFrom(time),
+            drawingRect.top +
+              ((drawingRect.bottom - drawingRect.top) / 2 +
+                stateCanvas.mTimeBarTextSize / 2),
+          );
+        } else {
+          canvas.fillText(
+            stateCanvas.epgUtils.getShortTime(time),
+            getXFrom(time),
+            drawingRect.top +
+              ((drawingRect.bottom - drawingRect.top) / 2 +
+                stateCanvas.mTimeBarTextSize / 2),
+          );
+        }
+      }
+      if (isRTL()) {
+        stateCanvas.ctx.setTransform(-1, -0, 0, 1, getWidth(), 0);
+        //canvas.restore();ZZ
+      }
+
+      //canvas.restore();
+
+      drawTimebarDayIndicator(canvas, drawingRect);
+      drawTimebarBottomStroke(canvas, drawingRect);
+    },
+    [
+      getXFrom,
+      getScrollY,
+      getScrollX,
+      stateCanvas,
+      isRTL,
+      getWidth,
+      drawTimebarBottomStroke,
+      drawTimebarDayIndicator,
+    ],
+  );
+
+  const drawTimebarDayIndicator = useCallback(
+    (canvas, drawingRect) => {
+      drawingRect.left = getScrollX();
+      drawingRect.top = getScrollY();
+      drawingRect.right = drawingRect.left + stateCanvas.mChannelLayoutWidth;
+      drawingRect.bottom = drawingRect.top + stateCanvas.mTimeBarHeight;
+
+      // Background
+      //mPaint.setColor(mChannelLayoutBackground);
+      canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
       //canvas.drawRect(drawingRect, mPaint);
       canvas.fillRect(
         drawingRect.left,
@@ -591,259 +567,409 @@ const TVGuide = ({ epgData }) => {
         drawingRect.width,
         drawingRect.height,
       );
-    }
-  };
 
-  const drawEvents = (canvas, drawingRect) => {
-    let firstPos = getFirstVisibleChannelPosition();
-    let lastPos = getLastVisibleChannelPosition();
-
-    //console.log ("First: " + firstPos + " Last: " + lastPos);
-
-    for (let pos = firstPos; pos <= lastPos; pos++) {
-      // Set clip rectangle
-      stateCanvas.mClipRect.left =
-        getScrollX() +
-        stateCanvas.mChannelLayoutWidth +
-        stateCanvas.mChannelLayoutMargin;
-      stateCanvas.mClipRect.top = getTopFrom(pos);
-      stateCanvas.mClipRect.right = getScrollX() + getWidth();
-      stateCanvas.mClipRect.bottom =
-        stateCanvas.mClipRect.top + stateCanvas.mChannelLayoutHeight;
-
-      //canvas.save();
-      //canvas.rect(this.mClipRect.left, this.mClipRect.top, this.mClipRect.width, this.mClipRect.height);
-      //canvas.clip();
-
-      // Draw each event
-      let foundFirst = false;
-
-      let epgEvents = epgData.getEvents(pos);
+      // Text
+      //mPaint.setColor(mEventLayoutTextColor);
+      canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
+      //mPaint.setTextSize(mTimeBarTextSize);
+      //mPaint.setTextAlign(Paint.Align.CENTER);
+      canvas.textAlign = 'center';
+      //canvas.drawText(EPGUtil.getWeekdayName(mTimeLowerBoundary),
+      //drawingRect.left + ((drawingRect.right - drawingRect.left) / 2),
+      //drawingRect.top + (((drawingRect.bottom - drawingRect.top) / 2) + (mTimeBarTextSize / 2)), mPaint);
       if (isRTL()) {
-        //canvas.setTransform(1, 0, 0, 1, 0, 0);
-        //canvas.textAlign = "right";
-      }
-
-      for (let event of epgEvents) {
-        if (isEventVisible(event.getStart(), event.getEnd())) {
-          drawEvent(canvas, pos, event, drawingRect);
-          foundFirst = true;
-        } else if (foundFirst) {
-          break;
-        }
-      }
-
-      if (isRTL()) {
-        //this.ctx.setTransform(-1, -0, 0, 1, this.getWidth(), 0);
-      }
-
-      //canvas.restore();
-    }
-  };
-
-  const drawEvent = (canvas, channelPosition, event, drawingRect) => {
-    setEventDrawingRectangle(
-      channelPosition,
-      event.getStart(),
-      event.getEnd(),
-      drawingRect,
-    );
-
-    // Background
-    //mPaint.setColor(event.isCurrent() ? mEventLayoutBackgroundCurrent : mEventLayoutBackground);
-    canvas.fillStyle = event.isCurrent()
-      ? stateCanvas.mEventLayoutBackgroundCurrent
-      : stateCanvas.mEventLayoutBackground;
-    if (channelPosition == getFocusedChannelPosition()) {
-      let focusedEventPosition = getFocusedEventPosition();
-      if (focusedEventPosition != -1) {
-        let focusedEvent = epgData.getEvent(
-          channelPosition,
-          focusedEventPosition,
-        );
-        if (focusedEvent == event) {
-          canvas.fillStyle = stateCanvas.mEventLayoutBackgroundFocus;
-        }
-      } else if (event.isCurrent()) {
-        stateCanvas.focusedEventPosition = epgData.getEventPosition(
-          channelPosition,
-          event,
-        );
-        canvas.fillStyle = stateCanvas.mEventLayoutBackgroundFocus;
-      }
-    }
-    //canvas.drawRect(drawingRect, mPaint);
-    // if Clip is not working properly, hack
-    if (
-      drawingRect.left <
-      getScrollX() +
-        stateCanvas.mChannelLayoutWidth +
-        stateCanvas.mChannelLayoutMargin
-    ) {
-      drawingRect.left =
-        getScrollX() +
-        stateCanvas.mChannelLayoutWidth +
-        stateCanvas.mChannelLayoutMargin;
-    }
-    canvas.fillRect(
-      drawingRect.left,
-      drawingRect.top,
-      drawingRect.width,
-      drawingRect.height,
-    );
-
-    // Add left and right inner padding
-    drawingRect.left += stateCanvas.mChannelLayoutPadding;
-    drawingRect.right -= stateCanvas.mChannelLayoutPadding;
-
-    // Text
-    //mPaint.setColor(mEventLayoutTextColor);
-    canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
-    //mPaint.setTextSize(mEventLayoutTextSize);
-    canvas.font = '20px Arial';
-
-    // Move drawing.top so text will be centered (text is drawn bottom>up)
-    //mPaint.getTextBounds(event.getTitle(), 0, event.getTitle().length(), mMeasuringRect);
-    drawingRect.top += (drawingRect.bottom - drawingRect.top) / 2 + 10 / 2;
-
-    let title = event.getTitle();
-    /*title = title.substring(0,
-         mPaint.breakText(title, true, drawingRect.right - drawingRect.left, null));*/
-    if (isRTL()) {
-      //canvas.setTransform(1, 0, 0, 1, 0, 0);
-      //canvas.fillText(title, (this.getWidth() + this.mChannelLayoutMargin + this.mChannelLayoutMargin - this.mChannelLayoutHeight) - drawingRect.left, drawingRect.top);
-      //canvas.scale(1, -1);
-      console.log('LEFT :' + drawingRect.left);
-      canvas.fillText(title, drawingRect.left, drawingRect.top);
-      //canvas.setTransform(-1, -0, 0, 1, this.getWidth(), 0);
-      //canvas.textAlign = "right";
-    } else {
-      canvas.fillText(title, drawingRect.left, drawingRect.top);
-    }
-  };
-
-  const setEventDrawingRectangle = (
-    channelPosition,
-    start,
-    end,
-    drawingRect,
-  ) => {
-    drawingRect.left = getXFrom(start);
-    drawingRect.top = getTopFrom(channelPosition);
-    drawingRect.right = getXFrom(end) - stateCanvas.mChannelLayoutMargin;
-    drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutHeight;
-
-    return drawingRect;
-  };
-
-  const drawChannelListItems = (canvas, drawingRect) => {
-    // Background
-    stateCanvas.mMeasuringRect.left = getScrollX();
-    stateCanvas.mMeasuringRect.top = getScrollY();
-    stateCanvas.mMeasuringRect.right =
-      drawingRect.left + stateCanvas.mChannelLayoutWidth;
-    stateCanvas.mMeasuringRect.bottom =
-      stateCanvas.mMeasuringRect.top + getHeight();
-
-    //mPaint.setColor(mChannelLayoutBackground);
-    canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
-    canvas.fillRect(
-      stateCanvas.mMeasuringRect.left,
-      stateCanvas.mMeasuringRect.top,
-      stateCanvas.mMeasuringRect.width,
-      stateCanvas.mMeasuringRect.height,
-    );
-
-    let firstPos = getFirstVisibleChannelPosition();
-    let lastPos = getLastVisibleChannelPosition();
-
-    for (let pos = firstPos; pos <= lastPos; pos++) {
-      drawChannelItem(canvas, pos, drawingRect);
-    }
-  };
-
-  const drawChannelItem = (canvas, position, drawingRect) => {
-    drawingRect.left = getScrollX();
-    drawingRect.top = getTopFrom(position);
-    drawingRect.right = drawingRect.left + stateCanvas.mChannelLayoutWidth;
-    drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutHeight;
-
-    // Loading channel image into target for
-    let imageURL = epgData.getChannel(position).getImageURL();
-
-    if (stateCanvas.mChannelImageCache.has(imageURL)) {
-      let image = stateCanvas.mChannelImageCache.get(imageURL);
-      drawingRect = getDrawingRectForChannelImage(drawingRect, image);
-      //canvas.drawBitmap(image, null, drawingRect, null);
-      if (isRTL()) {
+        //canvas.save();
         canvas.setTransform(1, 0, 0, 1, 0, 0);
-        canvas.drawImage(
-          image,
+        //canvas.scale(-1, 1);
+
+        canvas.fillText(
+          stateCanvas.epgUtils.getWeekdayName(stateCanvas.mTimeLowerBoundary),
           getWidth() +
-            4 * stateCanvas.mChannelLayoutMargin -
-            stateCanvas.mChannelLayoutWidth -
-            drawingRect.left,
-          drawingRect.top,
-          drawingRect.width,
-          drawingRect.height,
+            stateCanvas.mChannelLayoutMargin +
+            stateCanvas.mChannelLayoutMargin -
+            stateCanvas.mChannelLayoutHeight -
+            drawingRect.left +
+            (drawingRect.right - drawingRect.left) / 2,
+          drawingRect.top +
+            ((drawingRect.bottom - drawingRect.top) / 2 +
+              stateCanvas.mTimeBarTextSize / 2),
         );
-        canvas.setTransform(-1, -0, 0, 1, getWidth(), 0);
       } else {
-        canvas.drawImage(
-          image,
+        canvas.fillText(
+          stateCanvas.epgUtils.getWeekdayName(stateCanvas.mTimeLowerBoundary),
+          drawingRect.left + (drawingRect.right - drawingRect.left) / 2,
+          drawingRect.top +
+            ((drawingRect.bottom - drawingRect.top) / 2 +
+              stateCanvas.mTimeBarTextSize / 2),
+        );
+      }
+
+      if (isRTL()) {
+        stateCanvas.ctx.setTransform(-1, -0, 0, 1, getWidth(), 0);
+      }
+
+      //mPaint.setTextAlign(Paint.Align.LEFT);
+      canvas.textAlign = 'left';
+    },
+    [stateCanvas, getWidth, isRTL, getScrollY, getScrollX],
+  );
+
+  const drawTimebarBottomStroke = useCallback(
+    (canvas, drawingRect) => {
+      drawingRect.left = getScrollX();
+      drawingRect.top = getScrollY() + stateCanvas.mTimeBarHeight;
+      drawingRect.right = drawingRect.left + getWidth();
+      drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutMargin;
+
+      // Bottom stroke
+      //mPaint.setColor(mEPGBackground);
+      canvas.fillStyle = stateCanvas.mEPGBackground;
+      canvas.fillRect(
+        drawingRect.left,
+        drawingRect.top,
+        drawingRect.width,
+        drawingRect.height,
+      );
+    },
+    [getScrollX, getScrollY, stateCanvas, getWidth],
+  );
+
+  const drawTimeLine = useCallback(
+    (canvas, drawingRect) => {
+      let now = Date.now();
+      if (shouldDrawTimeLine(now)) {
+        drawingRect.left = getXFrom(now);
+        drawingRect.top = getScrollY();
+        drawingRect.right = drawingRect.left + stateCanvas.mTimeBarLineWidth;
+        drawingRect.bottom = drawingRect.top + getHeight();
+
+        //mPaint.setColor(mTimeBarLineColor);
+        canvas.fillStyle = stateCanvas.mTimeBarLineColor;
+        //canvas.drawRect(drawingRect, mPaint);
+        canvas.fillRect(
           drawingRect.left,
           drawingRect.top,
           drawingRect.width,
           drawingRect.height,
         );
       }
-    } else {
-      stateCanvas.epgUtils.fetImage(imageURL, (data) => {
-        const image = new CanvasImage(canvasRe.current);
-        image.src = data;
-        stateCanvas.mChannelImageCache.set(imageURL, image);
-        updateCanvas();
-      });
+    },
+    [getXFrom, getScrollY, getHeight, stateCanvas, shouldDrawTimeLine],
+  );
 
-      // console.log(img);
-      // img.onload = function () {
-      //   stateCanvas.mChannelImageCache.set(imageURL, img);
-      //   updateCanvas();
-      //   //drawingRect = that.getDrawingRectForChannelImage(drawingRect, img);
-      //   //canvas.drawBitmap(image, null, drawingRect, null);
-      //   //canvas.drawImage(img, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
-      // };
-    }
-  };
+  const drawEvents = useCallback(
+    (canvas, drawingRect) => {
+      let firstPos = getFirstVisibleChannelPosition();
+      let lastPos = getLastVisibleChannelPosition();
 
-  const getDrawingRectForChannelImage = (drawingRect, image) => {
-    drawingRect.left += stateCanvas.mChannelLayoutPadding;
-    drawingRect.top += stateCanvas.mChannelLayoutPadding;
-    drawingRect.right -= stateCanvas.mChannelLayoutPadding;
-    drawingRect.bottom -= stateCanvas.mChannelLayoutPadding;
+      //console.log ("First: " + firstPos + " Last: " + lastPos);
 
-    let imageWidth = image.width;
-    let imageHeight = image.height;
-    let imageRatio = imageHeight / parseFloat(imageWidth);
+      for (let pos = firstPos; pos <= lastPos; pos++) {
+        // Set clip rectangle
+        stateCanvas.mClipRect.left =
+          getScrollX() +
+          stateCanvas.mChannelLayoutWidth +
+          stateCanvas.mChannelLayoutMargin;
+        stateCanvas.mClipRect.top = getTopFrom(pos);
+        stateCanvas.mClipRect.right = getScrollX() + getWidth();
+        stateCanvas.mClipRect.bottom =
+          stateCanvas.mClipRect.top + stateCanvas.mChannelLayoutHeight;
 
-    let rectWidth = drawingRect.right - drawingRect.left;
-    let rectHeight = drawingRect.bottom - drawingRect.top;
+        //canvas.save();
+        //canvas.rect(this.mClipRect.left, this.mClipRect.top, this.mClipRect.width, this.mClipRect.height);
+        //canvas.clip();
 
-    // Keep aspect ratio.
-    if (imageWidth > imageHeight) {
-      let padding = parseInt((rectHeight - rectWidth * imageRatio) / 2);
-      drawingRect.top += padding;
-      drawingRect.bottom -= padding;
-    } else if (imageWidth <= imageHeight) {
-      let padding = parseInt((rectWidth - rectHeight / imageRatio) / 2);
-      drawingRect.left += padding;
-      drawingRect.right -= padding;
-    }
+        // Draw each event
+        let foundFirst = false;
 
-    return drawingRect;
-  };
+        let epgEvents = epgData.getEvents(pos);
+        if (isRTL()) {
+          //canvas.setTransform(1, 0, 0, 1, 0, 0);
+          //canvas.textAlign = "right";
+        }
 
-  const drawFocusEvent = (canvas, drawingRect) => {};
+        for (let event of epgEvents) {
+          if (isEventVisible(event.getStart(), event.getEnd())) {
+            drawEvent(canvas, pos, event, drawingRect);
+            foundFirst = true;
+          } else if (foundFirst) {
+            break;
+          }
+        }
+
+        if (isRTL()) {
+          //this.ctx.setTransform(-1, -0, 0, 1, this.getWidth(), 0);
+        }
+
+        //canvas.restore();
+      }
+    },
+    [
+      getTopFrom,
+      stateCanvas,
+      epgData,
+      isEventVisible,
+      isRTL,
+      getWidth,
+      getScrollX,
+      getFirstVisibleChannelPosition,
+      getLastVisibleChannelPosition,
+      drawEvent,
+    ],
+  );
+
+  const drawEvent = useCallback(
+    (canvas, channelPosition, event, drawingRect) => {
+      setEventDrawingRectangle(
+        channelPosition,
+        event.getStart(),
+        event.getEnd(),
+        drawingRect,
+      );
+
+      // Background
+      //mPaint.setColor(event.isCurrent() ? mEventLayoutBackgroundCurrent : mEventLayoutBackground);
+      canvas.fillStyle = event.isCurrent()
+        ? stateCanvas.mEventLayoutBackgroundCurrent
+        : stateCanvas.mEventLayoutBackground;
+      if (channelPosition == getFocusedChannelPosition()) {
+        let focusedEventPosition = getFocusedEventPosition();
+        if (focusedEventPosition != -1) {
+          let focusedEvent = epgData.getEvent(
+            channelPosition,
+            focusedEventPosition,
+          );
+          if (focusedEvent == event) {
+            canvas.fillStyle = stateCanvas.mEventLayoutBackgroundFocus;
+          }
+        } else if (event.isCurrent()) {
+          stateCanvas.focusedEventPosition = epgData.getEventPosition(
+            channelPosition,
+            event,
+          );
+          canvas.fillStyle = stateCanvas.mEventLayoutBackgroundFocus;
+        }
+      }
+      //canvas.drawRect(drawingRect, mPaint);
+      // if Clip is not working properly, hack
+      if (
+        drawingRect.left <
+        getScrollX() +
+          stateCanvas.mChannelLayoutWidth +
+          stateCanvas.mChannelLayoutMargin
+      ) {
+        drawingRect.left =
+          getScrollX() +
+          stateCanvas.mChannelLayoutWidth +
+          stateCanvas.mChannelLayoutMargin;
+      }
+      canvas.fillRect(
+        drawingRect.left,
+        drawingRect.top,
+        drawingRect.width,
+        drawingRect.height,
+      );
+
+      // Add left and right inner padding
+      drawingRect.left += stateCanvas.mChannelLayoutPadding;
+      drawingRect.right -= stateCanvas.mChannelLayoutPadding;
+
+      // Text
+      //mPaint.setColor(mEventLayoutTextColor);
+      canvas.fillStyle = "#aaff00";
+      //mPaint.setTextSize(mEventLayoutTextSize);
+      canvas.font = '12px Arial';
+
+      // Move drawing.top so text will be centered (text is drawn bottom>up)
+      //mPaint.getTextBounds(event.getTitle(), 0, event.getTitle().length(), mMeasuringRect);
+      drawingRect.top += (drawingRect.bottom - drawingRect.top) / 2 + 10 / 2;
+      const start = moment(event.start).format('HH:MM');
+      const end = moment(event.end).format('HH:MM');
+      let title = event.getTitle();
+      /*title = title.substring(0,
+         mPaint.breakText(title, true, drawingRect.right - drawingRect.left, null));*/
+      canvas.fillText(
+        `Start: ${start} - end: ${end}`,
+        drawingRect.left,
+        drawingRect.top + 15,
+      );
+      
+      canvas.fillStyle = stateCanvas.mEventLayoutTextColor;
+      if (isRTL()) {
+        //canvas.setTransform(1, 0, 0, 1, 0, 0);
+        //canvas.fillText(title, (this.getWidth() + this.mChannelLayoutMargin + this.mChannelLayoutMargin - this.mChannelLayoutHeight) - drawingRect.left, drawingRect.top);
+        //canvas.scale(1, -1);
+        console.log('LEFT :' + drawingRect.left);
+        canvas.fillText(title, drawingRect.left, drawingRect.top);
+        //canvas.setTransform(-1, -0, 0, 1, this.getWidth(), 0);
+        //canvas.textAlign = "right";
+      } else {
+        canvas.fillText(title, drawingRect.left, drawingRect.top);
+      }
+    },
+    [
+      stateCanvas,
+      epgData,
+      getScrollX,
+      isRTL,
+      setEventDrawingRectangle,
+      getFocusedChannelPosition,
+      getFocusedEventPosition,
+    ],
+  );
+
+  const setEventDrawingRectangle = useCallback(
+    (channelPosition, start, end, drawingRect) => {
+      drawingRect.left = getXFrom(start);
+      drawingRect.top = getTopFrom(channelPosition);
+      drawingRect.right = getXFrom(end) - stateCanvas.mChannelLayoutMargin;
+      drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutHeight;
+
+      return drawingRect;
+    },
+    [stateCanvas, getTopFrom, getXFrom],
+  );
+
+  const drawChannelListItems = useCallback(
+    (canvas, drawingRect) => {
+      // Background
+      stateCanvas.mMeasuringRect.left = getScrollX();
+      stateCanvas.mMeasuringRect.top = getScrollY();
+      stateCanvas.mMeasuringRect.right =
+        drawingRect.left + stateCanvas.mChannelLayoutWidth;
+      stateCanvas.mMeasuringRect.bottom =
+        stateCanvas.mMeasuringRect.top + getHeight();
+
+      //mPaint.setColor(mChannelLayoutBackground);
+      canvas.fillStyle = stateCanvas.mChannelLayoutBackground;
+      canvas.fillRect(
+        stateCanvas.mMeasuringRect.left,
+        stateCanvas.mMeasuringRect.top,
+        stateCanvas.mMeasuringRect.width,
+        stateCanvas.mMeasuringRect.height,
+      );
+
+      let firstPos = getFirstVisibleChannelPosition();
+      let lastPos = getLastVisibleChannelPosition();
+
+      for (let pos = firstPos; pos <= lastPos; pos++) {
+        drawChannelItem(canvas, pos, drawingRect);
+      }
+    },
+    [
+      getScrollX,
+      getHeight,
+      getScrollY,
+      stateCanvas,
+      drawChannelItem,
+      getLastVisibleChannelPosition,
+      getFirstVisibleChannelPosition,
+    ],
+  );
+
+  const drawChannelItem = useCallback(
+    (canvas, position, drawingRect) => {
+      drawingRect.left = getScrollX();
+      drawingRect.top = getTopFrom(position);
+      drawingRect.right = drawingRect.left + stateCanvas.mChannelLayoutWidth;
+      drawingRect.bottom = drawingRect.top + stateCanvas.mChannelLayoutHeight;
+
+      // Loading channel image into target for
+      let imageURL = epgData.getChannel(position).getImageURL();
+      canvas.font = '12px Georgia';
+      canvas.fillStyle = '#FFFFFF';
+      canvas.fillText(
+        `${position}.`,
+        drawingRect.left + 3,
+        drawingRect.top + 10,
+      );
+      if (stateCanvas.mChannelImageCache.has(imageURL)) {
+        let image = stateCanvas.mChannelImageCache.get(imageURL);
+        drawingRect = getDrawingRectForChannelImage(drawingRect, image);
+        //canvas.drawBitmap(image, null, drawingRect, null);
+        if (isRTL()) {
+          canvas.setTransform(1, 0, 0, 1, 0, 0);
+          canvas.drawImage(
+            image,
+            getWidth() +
+              4 * stateCanvas.mChannelLayoutMargin -
+              stateCanvas.mChannelLayoutWidth -
+              drawingRect.left,
+            drawingRect.top,
+            drawingRect.width,
+            drawingRect.height,
+          );
+          canvas.setTransform(-1, -0, 0, 1, getWidth(), 0);
+        } else {
+          canvas.drawImage(
+            image,
+            drawingRect.left,
+            drawingRect.top,
+            drawingRect.width,
+            drawingRect.height,
+          );
+        }
+      } else {
+        stateCanvas.epgUtils.fetImage(imageURL, (data) => {
+          const image = new CanvasImage(canvasRe.current);
+          image.src = data;
+          stateCanvas.mChannelImageCache.set(imageURL, image);
+          updateCanvas();
+        });
+
+        // console.log(img);
+        // img.onload = function () {
+        //   stateCanvas.mChannelImageCache.set(imageURL, img);
+        //   updateCanvas();
+        //   //drawingRect = that.getDrawingRectForChannelImage(drawingRect, img);
+        //   //canvas.drawBitmap(image, null, drawingRect, null);
+        //   //canvas.drawImage(img, drawingRect.left, drawingRect.top, drawingRect.width, drawingRect.height);
+        // };
+      }
+    },
+    [
+      getWidth,
+      getScrollX,
+      getTopFrom,
+      updateCanvas,
+      isRTL,
+      stateCanvas,
+      epgData,
+      getDrawingRectForChannelImage,
+    ],
+  );
+
+  const getDrawingRectForChannelImage = useCallback(
+    (drawingRect, image) => {
+      drawingRect.left += stateCanvas.mChannelLayoutPadding;
+      drawingRect.top += stateCanvas.mChannelLayoutPadding;
+      drawingRect.right -= stateCanvas.mChannelLayoutPadding;
+      drawingRect.bottom -= stateCanvas.mChannelLayoutPadding;
+
+      let imageWidth = image.width;
+      let imageHeight = image.height;
+      let imageRatio = imageHeight / parseFloat(imageWidth);
+
+      let rectWidth = drawingRect.right - drawingRect.left;
+      let rectHeight = drawingRect.bottom - drawingRect.top;
+
+      // Keep aspect ratio.
+      if (imageWidth > imageHeight) {
+        let padding = parseInt((rectHeight - rectWidth * imageRatio) / 2);
+        drawingRect.top += padding;
+        drawingRect.bottom -= padding;
+      } else if (imageWidth <= imageHeight) {
+        let padding = parseInt((rectWidth - rectHeight / imageRatio) / 2);
+        drawingRect.left += padding;
+        drawingRect.right -= padding;
+      }
+
+      return drawingRect;
+    },
+    [stateCanvas],
+  );
+
+  const drawFocusEvent = useCallback((canvas, drawingRect) => {}, []);
 
   const handleClick = (event) => {
     stateCanvas.scrollX =
@@ -878,7 +1004,7 @@ const TVGuide = ({ epgData }) => {
       updateCanvas();
     }
   }, [
-    epgData.data,
+    stateCanvas,
     epgData,
     resetBoundaries,
     calculateMaxVerticalScroll,
@@ -1014,7 +1140,7 @@ const TVGuide = ({ epgData }) => {
       console.log(width, height);
       updateCanvas();
     }
-  }, [updateCanvas, epgData]);
+  }, [updateCanvas, width, height, epgData]);
 
   const updateCanvas = useCallback(() => {
     stateCanvas.ctx = canvasRe.current.getContext('2d');
