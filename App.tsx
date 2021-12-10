@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
 /**
  * Sample React Native App
  * https://github.com/facebook/react-native
@@ -12,8 +14,13 @@ import React from 'react';
 import { SafeAreaView, StatusBar, useColorScheme } from 'react-native';
 
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import TVGuide from './src/EPG/component/TVGuide';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import TVGuide2 from './src/EPG/component/TVGuide';
+import TVGuide1 from './src/EPG/component/TVGuideRR';
 import EPGData from './src/EPG/utils/EPGData';
+import { HomeScreen } from './src/screens';
+import { Provider } from 'react-redux';
+import { store } from './src/redux/stores';
 
 const App = () => {
   const isDarkMode = useColorScheme() === 'dark';
@@ -23,10 +30,12 @@ const App = () => {
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <TVGuide epgData={new EPGData()} />
-    </SafeAreaView>
+    <Provider store={store}>
+      <SafeAreaView style={backgroundStyle}>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        <HomeScreen />
+      </SafeAreaView>
+    </Provider>
   );
 };
 

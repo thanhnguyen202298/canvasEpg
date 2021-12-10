@@ -17,6 +17,7 @@ export default class EPGData {
     /*this.channels = new Array();
          this.events = new Array();*/
     this.data = MockDataService.getMockData();
+    // this.data = [];
     this.page = 0;
     if (this.data) {
       /*this.data.forEach((values, key) => {
@@ -37,7 +38,7 @@ export default class EPGData {
 
   getEvents(channelPosition) {
     let channel = this.channels[channelPosition];
-    let events = channel.getEvents();
+    let events = channel.events;
     return events;
   }
 
@@ -65,7 +66,7 @@ export default class EPGData {
 
   getEvent(channelPosition, programPosition) {
     let channel = this.channels[channelPosition];
-    let events = channel.getEvents();
+    let events = channel.events;
     return events[programPosition];
   }
 

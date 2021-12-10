@@ -3,7 +3,7 @@
  * Created by satadru on 4/1/17.
  */
 import moment from 'moment';
-import { DAYS_BACK_MILLIS, DAYS_FORWARD_MILLIS } from '../component/TVGuide';
+import { DAYS_BACK_MILLIS, DAYS_FORWARD_MILLIS } from '../component/TVGuideRR';
 import EPGChannel from '../models/EPGChannel';
 import EPGEvent from '../models/EPGEvent';
 import { formatDay } from './EPGData';
@@ -41,7 +41,7 @@ export default class MockDataService {
     const daynow = moment().format(formatDay);
     const daymilis = moment(daynow, formatDay).toDate().getTime();
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 20; i++) {
       let epgChannel = new EPGChannel(
         MockDataService.availableChannelLogos[i % 5],
         'Channel ' + (i + 1),

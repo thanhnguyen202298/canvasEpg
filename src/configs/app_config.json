@@ -1,0 +1,227 @@
+{
+    "static": {
+        "app_name": "VO TVApps",
+        "bundle_id": "com.viaccessorca.tvapps.whitelabel.dev",
+        "package_name": "com.viaccessorca.tvapps.whitelabel.dev",
+        "distribution": "store"
+    },
+    "appLanguage": "en",
+    "terminalModels": {
+        "androidPhone": "AndroidSmartphone",
+        "iphone": "IPhone",
+        "androidTv": "AndroidTV",
+        "PC": "PC"
+    },
+    "externalLinks": [
+        {
+            "title": "Terms & Conditions",
+            "url": "https://www.viaccess-orca.com/terms-conditions"
+        },
+        {
+            "title": "Privacy",
+            "url": "https://www.viaccess-orca.com/privacy-policy"
+        },
+        {
+            "title": "Contact",
+            "url": "https://www.viaccess-orca.com/contact"
+        }
+    ],
+    "endpoints": {
+        "rightv": "https://qlobbi.com/RTEFacade",
+        "compass": "https://votvapps-ng-test.tvaas.com/compass",
+        "compass_search": "https://votvapps-ng-test.tvaas.com/search/compass",
+        "drm_licence": "https://votvapps-ng-test.tvaas.com/RTEFacade/drm",
+        "drm_licence_PR": "https://votvapps-ng-test.tvaas.com/RTEFacade/drm",
+        "drm_licence_WV": "https://votvapps-ng-test.tvaas.com/RTEFacade/widevinedrm",
+        "drm_wv_certificate": "https://wv-certificate.tvaas.com/cert_uat_widevine_com.bin",
+        "imagesAssets": "https://votvapps-ng-test.tvaas.com/RTEFacade/images",
+        "avatars": "https://votvapps-ng-test.tvaas.com/apps/conf/avatars/vo_tvapps_avatars.json"
+    },
+    "assetsMapping": {
+        "channels": {
+            "SquareImage": "logo"
+        },
+        "programs": {
+            "SquareImage": "square",
+            "VerticalImage": "vertical",
+            "HorizontalImage": "horizontal"
+        },
+        "vod": {
+            "VerticalImage": "vertical"
+        }
+    },
+    "modules": {
+        "vod": {
+            "enabled": true
+        },
+        "linear": {
+            "enabled": true
+        },
+        "subtitles": {
+            "enabled": true,
+            "nameMapping": [
+                {
+                    "key": "en",
+                    "value": "English"
+                },
+                {
+                    "key": "eng",
+                    "value": "English"
+                },
+                {
+                    "key": "fra",
+                    "value": "Français"
+                },
+                {
+                    "key": "fr",
+                    "value": "Français"
+                },
+                {
+                    "key": "fre",
+                    "value": "Français"
+                },
+                {
+                    "key": "ger",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "deu",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "de",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "spa",
+                    "value": "Español"
+                },
+                {
+                    "key": "es",
+                    "value": "Español"
+                },
+                {
+                    "key": "rus",
+                    "value": "Pусский"
+                },
+                {
+                    "key": "ru",
+                    "value": "Pусский"
+                },
+                {
+                    "key": "cmn",
+                    "value": "中文"
+                }
+            ]
+        },
+        "multiAudio": {
+            "enabled": true,
+            "nameMapping": [
+                {
+                    "key": "en",
+                    "value": "English"
+                },
+                {
+                    "key": "eng",
+                    "value": "English"
+                },
+                {
+                    "key": "fra",
+                    "value": "Français"
+                },
+                {
+                    "key": "fr",
+                    "value": "Français"
+                },
+                {
+                    "key": "fre",
+                    "value": "Français"
+                },
+                {
+                    "key": "ger",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "deu",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "de",
+                    "value": "Deutsch"
+                },
+                {
+                    "key": "spa",
+                    "value": "Español"
+                },
+                {
+                    "key": "es",
+                    "value": "Español"
+                },
+                {
+                    "key": "rus",
+                    "value": "Pусский"
+                },
+                {
+                    "key": "ru",
+                    "value": "Pусский"
+                },
+                {
+                    "key": "cmn",
+                    "value": "中文"
+                }
+            ]
+        }
+    },
+    "navigation": {
+        "tabs": [
+            {
+                "name": "homeScreen",
+                "screen": "homeScreen",
+                "title": "Home"
+            },
+            {
+                "name": "allLivePrograms",
+                "screen": "allLivePrograms",
+                "title": "Live"
+            },
+            {
+                "name": "channels",
+                "screen": "allChannels",
+                "title": "Channels"
+            }
+        ]
+    },
+    "homeScreen": {
+        "content": [
+            {
+                "type": "banner",
+                "category": "",
+                "title": "Featured"
+            },
+            {
+                "type": "linear",
+                "category": "live",
+                "screenName": "allLivePrograms",
+                "title": "Live Programs"
+            },
+            {
+                "type": "vod",
+                "category": "226",
+                "screenName": "VOD",
+                "title": "Movies"
+            },
+            {
+                "type": "vod",
+                "category": "227",
+                "screenName": "VOD",
+                "title": "Series"
+            },
+            {
+                "type": "linear",
+                "category": "evening",
+                "screenName": "evening",
+                "title": "This Evening"
+            }
+        ]
+    }
+}
